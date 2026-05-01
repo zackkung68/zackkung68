@@ -1,0 +1,1393 @@
+if not game:IsLoaded() then repeat task.wait() until game:IsLoaded() end
+
+-- ========================================
+-- 🔧 SERVICES & INITIALIZATION
+-- ========================================
+local cloneref = function(...) return ... end
+local Missing = function(t, f, fallback) return type(f) == t and f or fallback end
+cloneref = Missing("function", cloneref, function(...) return ... end)
+
+local Service = setmetatable({}, {__index = function(self, name) return cloneref(game:GetService(name)) end})
+
+do 
+ReplicatedStorage = Service.ReplicatedStorage 
+Players = Service.Players 
+RunService = Service.RunService 
+VirtualInputManager = Service.VirtualInputManager 
+VirtualUser = Service.VirtualUser 
+HttpService = Service.HttpService 
+CoreGui = Service.CoreGui 
+Workspace = Service.Workspace 
+Client = Players.LocalPlayer 
+Character = Client.Character or Client.CharacterAdded:Wait() 
+Humanoid = Character:WaitForChild("Humanoid") 
+RootPart = Character:WaitForChild("HumanoidRootPart") 
+PlayerGui = Client:WaitForChild("PlayerGui") 
+Backpack = Client:WaitForChild("Backpack") 
+func = {} 
+end
+
+local game = game 
+if typeof(game) ~= "Instance" then 
+game = workspace.Parent 
+end
+
+local function c() 
+return getgenv() 
+end
+
+-- 📦 Load Config Manager
+local Config_Manager = loadstring(game:HttpGet("https://raw.githubusercontent.com/Yenixs/Blockspin-Premium/refs/heads/main/Config-Manager"))() 
+Config_Manager.SC()
+
+-- 🚫 Anti-AFK System
+do 
+for _, conn in pairs(getconnections(Client.Idled)) do 
+    if conn.Disable then 
+        conn:Disable() 
+    elseif conn.Disconnect then 
+        conn:Disconnect() 
+    end 
+end 
+end
+
+-- ========================================
+-- 🌑 AUTO SHADOW CLOAK (IMPROVED)
+-- ========================================
+local ShadowCloakUsed = false
+
+--- ใช้ Shadow Cloak เมื่อเริ่มเกม
+local function UseShadowCloak()
+if not ShadowCloakUsed and c().AutoEquipShadowCloak then
+    task.wait(1)
+    local shadowCloak = Backpack:FindFirstChild("Shadow Cloak")
+    if shadowCloak then
+        Humanoid:EquipTool(shadowCloak)
+        task.wait(0.5)
+        pcall(function()
+            local args = {{{"Skill", "A", RootPart.CFrame}, "\004"}}
+            ReplicatedStorage:WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+        end)
+        task.wait(0.5)
+        Humanoid:UnequipTools()
+        ShadowCloakUsed = true
+        print("✅ Shadow Cloak activated!")
+    end
+end
+end
+
+-- เรียกใช้ตอนเริ่มสคริปต์
+task.spawn(function()
+task.wait(1)
+UseShadowCloak()
+end)
+
+-- 🔄 Character Respawn Handler
+Client.CharacterAdded:Connect(function(newCharacter) 
+Character = newCharacter 
+Humanoid = Character:WaitForChild("Humanoid") 
+RootPart = Character:WaitForChild("HumanoidRootPart") 
+Backpack = Client:WaitForChild("Backpack")
+ShadowCloakUsed = false
+UseShadowCloak()
+end)
+
+-- ========================================
+-- 🗺️ ISLAND & NPC DATA
+-- ========================================
+local IslandData = {
+["Starter Island"] = Vector3.new(-8.6300, 15.0959, 176.5), 
+["Buggy Island"] = Vector3.new(867.150, 15.0959, -594.77), 
+["Minecraft Island"] = Vector3.new(-1232.0, -8.3940, -36.747), 
+["Tree Island"] = Vector3.new(732.094, -10.940, -1656.6), 
+["Desert Island"] = Vector3.new(52.0019, 44.7280, -1063.6), 
+["Rock Island"] = Vector3.new(-61.055, 59.8800, 1523.14), 
+["Cave Island"] = Vector3.new(1649.88, 5.15799, 907.794), 
+["Event Island"] = Vector3.new(-1164.2, 100, -1727.0), 
+["AllNew Island"] = Vector3.new(-1332.1, 0.38299, 1105.46), 
+["SixSeven Island"] = Vector3.new(1472.45, -6.9730, -1185.1), 
+["Morioh Island"] = Vector3.new(1948.45, 10.3889, -151.69), 
+["DIO Island"] = Vector3.new(-2576.1, 1.73199, 328.578), 
+["Dark Island"] = Vector3.new(859.359, 1.95799, 743.851)
+}
+
+local NPCData = {
+["Black Leg Seller"] = Vector3.new(236.1, 42.5, -1158.5), 
+["Katana Seller"] = Vector3.new(-90.7, 18.6, 86.4), 
+["Yoru Seller"] = Vector3.new(-171.9, 76.4, 524.6), 
+["Steve Seller"] = Vector3.new(-1246.5, 10.1, 59.5), 
+["Gohan Seller"] = Vector3.new(-1172.3, 16.6, -1837.5), 
+["Santa Seller"] = Vector3.new(-1873.3, 22.8, 2038.1), 
+["Santa Hat Seller"] = Vector3.new(-1881.6, 22.8, 2048.2), 
+["Six Seven Seller"] = Vector3.new(1352.0, 11.1, -1263.5), 
+["DIO Seller"] = Vector3.new(-868.7, 42.8, -1990.4)
+}
+
+local AllIslands = {} 
+for island, _ in pairs(IslandData) do 
+table.insert(AllIslands, island) 
+end 
+table.sort(AllIslands)
+
+local AllNPCs = {} 
+for npc, _ in pairs(NPCData) do 
+table.insert(AllNPCs, npc) 
+end 
+table.sort(AllNPCs)
+
+-- ========================================
+-- 🛠️ UTILITY FUNCTIONS
+-- ========================================
+
+--- จัดรูปแบบตัวเลขให้อ่านง่าย (K, M, B, T)
+local function FormatNumber(num) 
+if num >= 1e12 then 
+    return string.format("%.2fT", num / 1e12) 
+elseif num >= 1e9 then 
+    return string.format("%.2fB", num / 1e9) 
+elseif num >= 1e6 then 
+    return string.format("%.2fM", num / 1e6) 
+else 
+    return tostring(num) 
+end 
+end
+
+--- ดึงรายชื่อมอนสเตอร์ทั้งหมดในเกม
+local function GetAllMobs() 
+local mobs = {} 
+for _, island in pairs(Workspace.Mobs:GetChildren()) do 
+    for i, mob in ipairs(island:GetChildren()) do 
+        if mob:IsA("Model") and (mob:FindFirstChild("Humanoid") or mob:FindFirstChild("Enemy")) then 
+            if not table.find(mobs, mob.Name) then 
+                table.insert(mobs, mob.Name) 
+            end 
+        end 
+    end 
+end 
+return mobs 
+end
+
+--- Teleport ตัวละครไปยังตำแหน่งที่กำหนด
+local function Teleport(cf) 
+if Character and Character:FindFirstChild("HumanoidRootPart") then 
+    Character.HumanoidRootPart.CFrame = cf 
+end 
+end
+
+--- หาเป้าหมายที่ใกล้ที่สุดจาก Path ที่กำหนด
+local function InRaya(Path, condition) 
+local ClosestTarget = nil 
+local ShortestDistance = math.huge 
+for _, Object in pairs(Path) do 
+    if condition(Object) then 
+        local Distance = (Object:GetPivot().Position - RootPart.Position).Magnitude 
+        if Distance < ShortestDistance then 
+            ShortestDistance = Distance 
+            ClosestTarget = Object 
+        end 
+    end 
+end 
+return ClosestTarget 
+end
+
+--- ดึงรายชื่อศัตรูทั้งหมดตามเกาะและมอนที่เลือก
+local function GetAllEnemy() 
+local enemies = {} 
+if c().SelectedIsland and c().SelectedIsland ~= "All Islands" then 
+    local island = Workspace.Mobs:FindFirstChild(c().SelectedIsland) 
+    if island then 
+        for _, mob in ipairs(island:GetChildren()) do 
+            if mob:IsA("Model") then 
+                local humanoid = mob:FindFirstChild("Humanoid") or mob:FindFirstChild("Enemy") 
+                local rootPart = mob:FindFirstChild("HumanoidRootPart") 
+                if humanoid and rootPart and humanoid.Health > 0 then 
+                    if c().SelectedMob == "All Mobs" or not c().SelectedMob or mob.Name == c().SelectedMob then 
+                        table.insert(enemies, mob) 
+                    end 
+                end 
+            end 
+        end 
+    end 
+else 
+    for _, island in pairs(Workspace.Mobs:GetChildren()) do 
+        for _, mob in ipairs(island:GetChildren()) do 
+            if mob:IsA("Model") then 
+                local humanoid = mob:FindFirstChild("Humanoid") or mob:FindFirstChild("Enemy") 
+                local rootPart = mob:FindFirstChild("HumanoidRootPart") 
+                if humanoid and rootPart and humanoid.Health > 0 then 
+                    table.insert(enemies, mob) 
+                end 
+            end 
+        end 
+    end 
+end 
+return enemies 
+end
+
+--- ส่งสัญญาณโจมตีไปยังเซิร์ฟเวอร์
+local function Attack() 
+pcall(function() 
+    local args = {{{"Skill", "A", RootPart.CFrame}, "\004"}} 
+    ReplicatedStorage:WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args)) 
+end) 
+end
+
+--- เช็คว่ามีไอเทมใน Backpack หรือไม่
+local function HasBackpack(name) 
+return Backpack:FindFirstChild(name) ~= nil 
+end
+
+--- ดึงไอเทมออกจาก Storage
+local function Pull(name) 
+ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Remove", name) 
+end
+
+-- ========================================
+-- ⚔️ MAIN FUNCTIONS
+-- ========================================
+
+--- 🎯 AUTO FARM (ระบบฟาร์มมอนอัตโนมัติ)
+func['AutoFarm'] = function() 
+while task.wait() do 
+    xpcall(function() 
+        if c().AutoFarm then 
+            if c().SelectedIsland and c().SelectedIsland ~= "All Islands" then 
+                if IslandData[c().SelectedIsland] then
+                    Teleport(CFrame.new(IslandData[c().SelectedIsland]))
+                end
+                
+                local island = Workspace.Mobs:WaitForChild(c().SelectedIsland)
+                local Closet = InRaya(island:GetChildren(), function(v) 
+                    if not v:IsA("Model") then return false end 
+                    local hum = v:FindFirstChild('Humanoid') or v:FindFirstChild('Enemy') 
+                    return hum and hum.Health > 0 and c().AutoFarm and (c().SelectedMob == "All Mobs" or not c().SelectedMob or v.Name == c().SelectedMob) 
+                end) 
+                
+                if Closet then 
+                    print("🎯 Attacking:", Closet.Name) 
+                    repeat 
+                        task.wait() 
+                        Teleport(CFrame.new(Closet:GetPivot().Position - Vector3.new(0, 6, 0)) * CFrame.Angles(math.rad(90), 0, 0)) 
+                        Attack() 
+                        local hum = Closet:FindFirstChild('Humanoid') or Closet:FindFirstChild('Enemy') 
+                    until not hum or hum.Health <= 0 or not c().AutoFarm 
+                end
+            else 
+                local Closet = InRaya(GetAllEnemy(), function(v) 
+                    local hum = v:FindFirstChild('Humanoid') or v:FindFirstChild('Enemy') 
+                    return hum and hum.Health > 0 and c().AutoFarm 
+                end) 
+                
+                if Closet then 
+                    print("🎯 Attacking:", Closet.Name) 
+                    repeat 
+                        task.wait() 
+                        Teleport(CFrame.new(Closet:GetPivot().Position - Vector3.new(0, 6, 0)) * CFrame.Angles(math.rad(90), 0, 0)) 
+                        Attack() 
+                        local hum = Closet:FindFirstChild('Humanoid') or Closet:FindFirstChild('Enemy') 
+                    until not hum or hum.Health <= 0 or not c().AutoFarm 
+                else 
+                    task.wait(0.5)
+                end 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 💎 FARM BEAST ORB (ฟาร์มลูกแก้ววิเศษ)
+func['FarmBeastOrb'] = function() 
+task.spawn(function() 
+    while c().FarmBeastOrb do 
+        pcall(function() 
+            VirtualUser:CaptureController() 
+            VirtualUser:ClickButton2(Vector2.new()) 
+        end) 
+        task.wait(60) 
+    end 
+end) 
+
+while task.wait(0.5) do 
+    xpcall(function() 
+        if c().FarmBeastOrb then 
+            local char = Client.Character 
+            if not char then 
+                repeat task.wait(0.5) until Client.Character 
+                char = Client.Character 
+                task.wait(1) 
+            end 
+            
+            local hrp = char:FindFirstChild("HumanoidRootPart") 
+            local humanoid = char:FindFirstChild("Humanoid") 
+            if not hrp or not humanoid then return end 
+            
+            hrp.CFrame = CFrame.new(Vector3.new(-1153.63, 19.80, -1800.72)) 
+            
+            local cidkagenouEquipped = char:FindFirstChild("Cid Kagenou") 
+            if not cidkagenouEquipped then 
+                local cidkagenouBackpack = Backpack:FindFirstChild("Cid Kagenou") 
+                if cidkagenouBackpack then 
+                    humanoid:EquipTool(cidkagenouBackpack) 
+                    task.wait(0.5) 
+                else 
+                    c().FarmBeastOrb = false 
+                    return 
+                end 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 👹 AUTO SPAWN DIO BOSS (เรียกบอส DIO อัตโนมัติ)
+func['AutoSpawnDio'] = function() 
+while task.wait(0.1) do 
+    xpcall(function() 
+        if c().AutoSpawnDio then 
+            local dioIsland = Workspace.Mobs:FindFirstChild("DIO Island") 
+            if dioIsland and #dioIsland:GetChildren() == 0 then 
+                if not HasBackpack("Heavenly Arrow") then 
+                    Pull("Heavenly Arrow") 
+                end 
+                local npc = Workspace.NPC:FindFirstChild("DioNPC") 
+                if npc then 
+                    fireclickdetector(npc.ClickDetector) 
+                    print("✅ DIO Boss Spawned!") 
+                end 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🐲 AUTO SPAWN BEAST BOSS (เรียกบอส Beast อัตโนมัติ)
+func['AutoSpawnBeast'] = function() 
+while task.wait(0.1) do 
+    xpcall(function() 
+        if c().AutoSpawnBeast then 
+            local eventIsland = Workspace.Mobs:FindFirstChild("Event Island") 
+            if eventIsland and #eventIsland:GetChildren() == 0 then 
+                if not HasBackpack("Beast Orb") then 
+                    Pull("Beast Orb") 
+                end 
+                local npc = Workspace.NPC:FindFirstChild("SummonNPC") 
+                if npc then 
+                    fireclickdetector(npc.ClickDetector) 
+                    print("✅ Beast Boss Spawned!") 
+                end 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🎭 AUTO SKILLS (ใช้สกิลอัตโนมัติ)
+local UsedF = false
+
+func['AutoSkills'] = function() 
+while task.wait(0.15) do 
+    xpcall(function() 
+        if c().AutoSkills then 
+            local char = Client.Character 
+            if not char or not char:FindFirstChild("HumanoidRootPart") then return end 
+            
+            local hrp = char.HumanoidRootPart 
+            for _, island in pairs(Workspace.Mobs:GetChildren()) do 
+                for _, mob in ipairs(island:GetChildren()) do 
+                    if mob:IsA("Model") then 
+                        local mobHumanoid = mob:FindFirstChild("Humanoid") or mob:FindFirstChild("Enemy") 
+                        local root = mob:FindFirstChild("HumanoidRootPart") 
+                        
+                        if mobHumanoid and root and mobHumanoid.Health > 0 then 
+                            local lookCF = CFrame.new(root.Position + Vector3.new(0, 2, 0), root.Position) 
+                            
+                            for _, key in ipairs({"Z", "X", "C", "V"}) do 
+                                if c()["UseSkill" .. key] then 
+                                    local args = {{{"Skill", key, lookCF}, "\004"}} 
+                                    ReplicatedStorage:WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args)) 
+                                    task.wait(c().SkillDelay or 1) 
+                                end 
+                            end 
+                            
+                            if c().UseSkillF and not UsedF then 
+                                local args = {{{"Skill", "F", lookCF}, "\004"}} 
+                                ReplicatedStorage:WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args)) 
+                                UsedF = true 
+                            end 
+                            
+                            return 
+                        end 
+                    end 
+                end 
+            end 
+            UsedF = false 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 📊 AUTO STATS (อัพเกรดสถิติอัตโนมัติ)
+func['AutoStats'] = function() 
+while task.wait(0.1) do 
+    xpcall(function() 
+        if c().AutoStats then 
+            if c().UpgradeDF then 
+                ReplicatedStorage:FindFirstChild("System"):FindFirstChild("UpgradeStats"):FireServer("DF", "1") 
+            end 
+            if c().UpgradeSword then 
+                ReplicatedStorage:FindFirstChild("System"):FindFirstChild("UpgradeStats"):FireServer("Sword", "1") 
+            end 
+            if c().UpgradeDefense then 
+                ReplicatedStorage:FindFirstChild("System"):FindFirstChild("UpgradeStats"):FireServer("Defense", "1") 
+            end 
+            if c().UpgradeStrength then 
+                ReplicatedStorage:FindFirstChild("System"):FindFirstChild("UpgradeStats"):FireServer("Strength", "1") 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🤝 AUTO ALLIES (ส่งคำเชิญเพื่อนอัตโนมัติ)
+func['AutoAllies'] = function() 
+while task.wait(1) do 
+    xpcall(function() 
+        if c().AutoAllies then 
+            for _, player in pairs(Players:GetPlayers()) do 
+                if player ~= Client then 
+                    pcall(function() 
+                        local args = {player.Name, "INVITE"} 
+                        ReplicatedStorage:FindFirstChild("System"):FindFirstChild("Allies"):FireServer(unpack(args)) 
+                    end) 
+                    task.wait(0.2) 
+                end 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🎰 AUTO RANDOM ITEM (สุ่มไอเทมอัตโนมัติ)
+func['AutoRandomItem'] = function() 
+while task.wait(0.1)do 
+    xpcall(function() 
+        if c().AutoRandomItem then 
+            for i = 1, 5 do 
+                ReplicatedStorage:WaitForChild("System"):WaitForChild("RandomItem"):FireServer(5) 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+-- ========================================
+-- 📦 STORAGE FUNCTIONS
+-- ========================================
+
+--- 💎 AUTO STORE BEAST ORB (เก็บ Beast Orb อัตโนมัติ)
+func['AutoStoreOrb'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoStoreOrb then 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Add", "Beast Orb") 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🏹 AUTO STORE STAND ARROW (เก็บ Stand Arrow อัตโนมัติ)
+func['AutoStoreArrow'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoStoreArrow then 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Add", "Stand Arrow") 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- ✨ AUTO STORE HEAVENLY ARROW (เก็บ Heavenly Arrow อัตโนมัติ)
+func['AutoStoreHeavenly'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoStoreHeavenly then 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Add", "Heavenly Arrow") 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🎒 AUTO STORE BACKPACK (เก็บไอเทมใน Backpack อัตโนมัติ)
+func['AutoStoreBackpack'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoStoreBackpack then 
+            for _, t in ipairs(Backpack:GetChildren()) do 
+                if t:IsA("Tool") and t.Name ~= "Heavenly Arrow" and t.Name ~= "Beast Orb" then 
+                    ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Add", t.Name) 
+                end 
+            end 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+-- ========================================
+-- 🔨 CRAFTING FUNCTIONS
+-- ========================================
+
+--- ✨ AUTO CRAFT HEAVENLY ARROW (คราฟ Heavenly Arrow อัตโนมัติ)
+func['AutoCraftHeavenly'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoCraftHeavenly then 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("CraftItem"):FireServer("Heavenly Arrow") 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Add", "Heavenly Arrow") 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🧥 AUTO CRAFT CID CLOAK (คราฟ Cid Cloak อัตโนมัติ)
+func['AutoCraftCidCloak'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoCraftCidCloak then 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("CraftItem"):FireServer("Cid Cloak") 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Add", "Cid Cloak") 
+        end 
+    end, function(d) warn(d) end) 
+end 
+end
+
+--- 🔫 AUTO CRAFT SIX SEVEN (คราฟ Six Seven อัตโนมัติ)
+func['AutoCraftSixSeven'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoCraftSixSeven then 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("CraftItem"):FireServer("67") 
+            
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory"):InvokeServer("Add", "67") 
+        end 
+    end, function(d) end) 
+end 
+end
+
+--- 💎 AUTO CRAFT DIAMOND SWORD (คราฟ Diamond Sword อัตโนมัติ)
+func['AutoCraftDiamond'] = function() 
+while task.wait(0.01) do 
+    xpcall(function() 
+        if c().AutoCraftDiamond then 
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("CraftItem"):FireServer("Diamond Sword") 
+        end 
+    end, function(d) end) 
+end 
+end
+
+-- ========================================
+-- ⚔️ AUTO EQUIP WEAPON
+-- ========================================
+local currentWeaponIndex = 1
+
+--- 🗡️ AUTO EQUIP WEAPON (เปลี่ยนอาวุธอัตโนมัติ)
+func['AutoEquipWeapon'] = function()
+while task.wait(c().WeaponSwapDelay or 5) do
+    xpcall(function()
+        if not c().AutoEquipWeapon then return end
+        local weapons = {}
+
+        for _, tool in ipairs(Backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                table.insert(weapons, tool)
+            end
+        end
+        if #weapons == 0 then return end
+
+        if c().SelectedWeapons and #c().SelectedWeapons > 0 then
+            local name = c().SelectedWeapons[currentWeaponIndex]
+            local tool = Backpack:FindFirstChild(name)
+            if tool then
+                Humanoid:EquipTool(tool)
+            end
+            currentWeaponIndex += 1
+            if currentWeaponIndex > #c().SelectedWeapons then
+                currentWeaponIndex = 1
+            end
+        else
+            currentWeaponIndex = ((currentWeaponIndex - 1) % #weapons) + 1
+            Humanoid:EquipTool(weapons[currentWeaponIndex])
+        end
+    end, warn)
+end
+end
+
+-- ========================================
+-- 👁️ MOB ESP (แสดงมอนสเตอร์บนหน้าจอ)
+-- ========================================
+
+--- สร้าง ESP สำหรับมอนสเตอร์
+local function CreateESP(mob)
+if mob:FindFirstChild("ESP_UI") then return end
+local hum = mob:FindFirstChild("Humanoid") or mob:FindFirstChild("Enemy")
+local root = mob:FindFirstChild("HumanoidRootPart")
+if not hum or not root then return end
+
+local hl = Instance.new("Highlight", mob)
+hl.Name = "ESP_HL"
+hl.FillColor = Color3.fromRGB(255, 60, 60)
+hl.OutlineColor = Color3.new(1,1,1)
+hl.FillTransparency = 0.4
+
+local gui = Instance.new("BillboardGui", mob)
+gui.Name = "ESP_UI"
+gui.Adornee = root
+gui.Size = UDim2.fromScale(4,1.5)
+gui.StudsOffset = Vector3.new(0,4,0)
+gui.AlwaysOnTop = true
+
+local txt = Instance.new("TextLabel", gui)
+txt.Size = UDim2.fromScale(1,1)
+txt.BackgroundTransparency = 1
+txt.TextScaled = true
+txt.Font = Enum.Font.GothamBold
+txt.TextStrokeTransparency = 0
+
+task.spawn(function()
+while c().HighlightMob and hum.Health > 0 do
+    txt.Text = mob.Name .. " | " .. math.floor((hum.Health/hum.MaxHealth)*100) .. "%"
+    task.wait(0.1)
+end
+if gui then gui:Destroy() end
+if hl then hl:Destroy() end
+end)
+end
+
+-- ========================================
+-- 🌈 HighlightMob(แสดงไฮไลท์ของมอนเตอร์)
+-- ========================================
+func['HighlightMob'] = function()
+while task.wait(0.1) do
+if c().HighlightMob then
+for _, island in pairs(Workspace.Mobs:GetChildren()) do
+for _, mob in pairs(island:GetChildren()) do
+if mob:IsA("Model") then
+CreateESP(mob)
+end
+end
+end
+else
+for _, v in ipairs(Workspace:GetDescendants()) do
+if v.Name == "ESP_UI" or v.Name == "ESP_HL" then
+v:Destroy()
+end
+end
+end
+end
+end
+
+-- ========================================
+--  ⚡️PERFORMANCE OPTIMIZATION 
+-- ========================================
+
+func["Performance"] = function()
+local removed = {}
+local function destroyFolder(name)
+local obj = Workspace:FindFirstChild(name)
+if obj then
+    obj:Destroy()
+    removed[name] = true
+end
+end
+
+-- ดักการสร้างใหม่
+Workspace.ChildAdded:Connect(function(child)
+if removed[child.Name] then
+    task.wait()
+    if child and child.Parent then
+        child:Destroy()
+    end
+end
+end)
+
+while task.wait(1) do
+xpcall(function()
+    if not c().ReduceCPU then return end
+
+    destroyFolder("Debris")
+    destroyFolder("SkillEffect")
+    destroyFolder("SkillsEffect")
+    destroyFolder("Effect")
+    destroyFolder("Effects")
+
+    local reduceEffect = Workspace:FindFirstChild("Reduce Effect")
+    if reduceEffect and reduceEffect:IsA("BoolValue") then
+        reduceEffect.Value = true
+    end
+
+    if c().DisableCamShake then
+        if Client:FindFirstChild("CamShakeEnabled") then
+            Client.CamShakeEnabled = false
+        end
+    end
+
+    if c().EnableAutoGetItem then
+        local ab = Client:FindFirstChild("AlreadyBuy")
+        if ab then
+            local agi = ab:FindFirstChild("AutoGetItem")
+            if agi then agi.Value = true end
+        end
+    end
+
+    if c().EnableX2Luck then
+        local ab = Client:FindFirstChild("AlreadyBuy")
+        if ab then
+            local luck = ab:FindFirstChild("X2Luck")
+            if luck then luck.Value = true end
+        end
+    end
+
+end, warn)
+end
+end
+
+-- ================================
+-- 🎯 WEBHOOK SYSTEM (IMPROVED)
+-- ================================
+
+--- เก็บค่าเดิมไว้เช็คของที่เพิ่มขึ้น
+local LastItemCount = {}
+
+--- ตารางความหายากของไอเทม
+local RarityItems = {
+Mythic = {
+    "Cid Sword", "DIO Diary", "Santa Gift",
+    "Cell Head", "Trait Reroll", "Race Reroll"
+},
+Special = {
+    "Stone Mask", "Cid Cloak", "Heavenly Arrow",
+    "Atomic Orb", "Beast Orb"
+},
+Legendary = {
+    "67", "Allmight Skin", "Gojo Skin", "Pain Skin",
+    "Pikachu Skin", "Ultraman Skin",
+    "Diamond Ore", "Diamond Sword",
+    "Light Fruit", "Stand Arrow"
+},
+Rare = {
+    "Six", "Seven", "Red Orb", "Yellow Orb",
+    "Green Orb", "Dark Orb", "Dark Fruit", "Gold Ore"
+}
+}
+
+--- หาความหายากของไอเทม
+--- @param item string ชื่อไอเทม
+--- @return string|nil ความหายาก (Mythic, Special, Legendary, Rare)
+local function FindRarity(item)
+for rarity, list in pairs(RarityItems) do
+    if table.find(list, item) then
+        return rarity
+    end
+end
+return nil
+end
+
+--- แปลงเวลาเป็นรูปแบบพุทธศักราช (BE)
+--- @return string เวลาในรูปแบบ DD/MM/YYYY BE, HH:MM
+local function GetBETime()
+local t = os.date("!*t")
+t.year = t.year + 543
+return string.format(
+    "%02d/%02d/%04d BE, %02d:%02d",
+    t.day, t.month, t.year, t.hour, t.min
+)
+end
+
+--- ส่ง Webhook ไปยัง Discord
+--- @param payload table ข้อมูล JSON ที่จะส่ง
+local function PostWebhook(payload)
+if not c().WebhookURL or c().WebhookURL == "" then 
+    return false, "Webhook URL not set"
+end
+
+local success, result = pcall(function()
+    return request({
+        Url = c().WebhookURL,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = HttpService:JSONEncode(payload)
+    })
+end)
+
+return success, result
+end
+
+--- ส่งสถานะผู้เล่นไปยัง Webhook
+--- @return boolean สำเร็จหรือไม่
+local function SendStatusWebhook()
+local data = Client.Data
+if not data then 
+    return false 
+end
+
+local payload = {
+    username = "Jxckyz Hub",
+    avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&",
+    embeds = {{
+        title = "📊 Jood Piece Status Report",
+        description = "**Current Player Statistics**",
+        color = 0xFF0000,
+        fields = {
+            {
+                name = "👤 Player Info",
+                value = string.format(
+                    "```\nName: %s\nUserID: %s```",
+                    Client.Name,
+                    tostring(Client.UserId)
+                ),
+                inline = false
+            },
+            {
+                name = "🌍 Server Info",
+                value = string.format("```\nJobId: %s```", game.JobId),
+                inline = false
+            },
+            {
+                name = "💰 Beli",
+                value = "```" .. FormatNumber(data.Beli.Value) .. "```",
+                inline = true
+            },
+            {
+                name = "💎 Gems",
+                value = "```" .. FormatNumber(data.Gems.Value) .. "```",
+                inline = true
+            },
+            {
+                name = "⭐ Level",
+                value = "```" .. tostring(data.Level.Value) .. "```",
+                inline = true
+            }
+        },
+        thumbnail = {
+            url = string.format(
+                "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
+                Client.UserId
+            )
+        },
+        footer = {
+            text = "Jxckyz Hub • " .. Client.Name,
+            icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&"
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }}
+}
+
+local success, result = PostWebhook(payload)
+return success
+end
+
+--- ส่งการแจ้งเตือนเมื่อเจอไอเทม
+--- @param item string ชื่อไอเทม
+--- @param rarity string ความหายาก
+--- @param amount number จำนวน
+--- @return boolean สำเร็จหรือไม่
+local function SendFoundItemWebhook(item, rarity, amount)
+if not c().WebhookURL or c().WebhookURL == "" then 
+    return false 
+end
+
+-- กรองตามความหายากที่เลือก
+if c().WebhookWatchRarity 
+and #c().WebhookWatchRarity > 0 
+and not table.find(c().WebhookWatchRarity, rarity) then
+    return false
+end
+
+-- กรอง Mythic Items เฉพาะ
+if rarity == "Mythic" 
+and c().WebhookMythicItems 
+and #c().WebhookMythicItems > 0 
+and not table.find(c().WebhookMythicItems, item) then
+    return false
+end
+
+-- สี Embed ตามความหายาก
+local rarityColors = {
+    Mythic = 0xFF0000,      -- แดง
+    Special = 0x9B59B6,     -- ม่วง
+    Legendary = 0xF1C40F,   -- ทอง
+    Rare = 0x3498DB         -- น้ำเงิน
+}
+
+-- Ping @everyone สำหรับ Mythic
+local content = nil
+if rarity == "Mythic" and c().WebhookPingEveryone then
+    content = "@everyone"
+end
+
+-- อิโมจิตามความหายาก
+local rarityEmoji = {
+    Mythic = "🔴",
+    Special = "🟣",
+    Legendary = "🟡",
+    Rare = "🔵"
+}
+
+local payload = {
+    content = content,
+    username = "Jxckyz Hub - Item Notifier",
+    embeds = {{
+        title = rarityEmoji[rarity] .. " Found " .. item .. "!",
+        description = string.format(
+            "**You just obtained a %s item!**\n\n*Keep farming for more!* 💪",
+            rarity
+        ),
+        color = rarityColors[rarity] or 0xFFFFFF,
+        fields = {
+            {
+                name = "📦 Item Name",
+                value = "```" .. item .. "```",
+                inline = true
+            },
+            {
+                name = "✨ Rarity",
+                value = "```" .. rarity .. "```",
+                inline = true
+            },
+            {
+                name = "🔢 Amount",
+                value = "```x" .. tostring(amount) .. "```",
+                inline = true
+            }
+        },
+        thumbnail = {
+            url = string.format(
+                "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
+                Client.UserId
+            )
+        },
+        footer = {
+            text = "Jxckyz Hub • " .. Client.Name,
+            icon_url = "https://cdn.discordapp.com/icons/123456789/icon.png"
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }}
+}
+
+local success, result = PostWebhook(payload)
+
+if success then
+    print(string.format("✅ Webhook sent: %s (%s) x%d", item, rarity, amount))
+else
+    warn(string.format("❌ Webhook failed: %s", tostring(result)))
+end
+
+return success
+end
+
+--- ส่ง Test Webhook
+--- @return boolean สำเร็จหรือไม่
+local function SendTestWebhook()
+if not c().WebhookURL or c().WebhookURL == "" then 
+    return false, "Please set Webhook URL first!"
+end
+
+local payload = {
+    username = "Jxckyz Hub ",
+    avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&",
+    embeds = {{
+        title = "✅ Webhook Test Successful!",
+        description = "**Your webhook is working perfectly!**\n\nYou will receive notifications when:\n• Status updates are sent\n• Rare items are found",
+        color = 0xFF0000,
+        fields = {
+            {
+                name = " Player",
+                value = "```" .. Client.Name .. "```",
+                inline = true
+            },
+            {
+                name = " UserID",
+                value = "```" .. tostring(Client.UserId) .. "```",
+                inline = true
+            },
+            {
+                name = " Test Time",
+                value = "```" .. GetBETime() .. "```",
+                inline = false
+            }
+        },
+        thumbnail = {
+            url = string.format(
+                "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
+                Client.UserId
+            )
+        },
+        footer = {
+            text = "Jxckyz Hub •  Test",
+            icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&"
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }}
+}
+
+local success, result = PostWebhook(payload)
+return success, result
+end
+
+-- ================================
+-- 🔍 ITEM WATCH LOOP (ตรวจสอบไอเทมที่เพิ่ม)
+-- ================================
+
+task.spawn(function()
+while task.wait(1) do
+    pcall(function()
+        if not c().WebhookURL or c().WebhookURL == "" then return end
+        
+        for rarity, list in pairs(RarityItems) do
+            for _, item in ipairs(list) do
+                local itemValue = Client.InvData:FindFirstChild(item)
+                if itemValue and itemValue:IsA("IntValue") then
+                    local currentAmount = itemValue.Value
+                    local lastAmount = LastItemCount[item] or 0
+                    
+                    -- เช็คว่าไอเทมเพิ่มขึ้นหรือไม่
+                    if currentAmount > lastAmount then
+                        local difference = currentAmount - lastAmount
+                        SendFoundItemWebhook(item, rarity, difference)
+                    end
+                    
+                    LastItemCount[item] = currentAmount
+                end
+            end
+        end
+    end)
+end
+end)
+
+-- ================================
+-- 📤 AUTO WEBHOOK STATUS (ส่งสถานะอัตโนมัติ)
+-- ================================
+
+func["AutoWebhook"] = function()
+while task.wait(1) do
+    if c().AutoWebhook and c().WebhookURL and c().WebhookURL ~= "" then
+        local intervalSeconds = (c().WebhookInterval or 5) * 60
+        task.wait(intervalSeconds)
+        
+        pcall(function()
+            SendStatusWebhook()
+        end)
+    end
+end
+end
+
+--==================================================
+-- 🌪️ WINDUI LOADER
+--==================================================
+local WindUI = loadstring(game:HttpGet(
+"https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+))()
+
+--==================================================
+-- 🪟 MAIN WINDOW
+--==================================================
+local Window = WindUI:CreateWindow({
+Title = "Jxckyz || Jood Piece",
+Icon = "github",
+Author = "By Jxckyz",
+Folder = "JoodPiece",
+Size = UDim2.fromOffset(480, 550),
+Theme = "Dark",
+Transparent = true,
+Resizable = true,
+
+OpenButton = {
+    Title = "Jxckyz",
+    Enabled = true,
+    Draggable = true,
+    OnlyMobile = false,
+    CornerRadius = UDim.new(1, 0),
+    StrokeThickness = 3,
+    Color = ColorSequence.new(
+        Color3.fromRGB(50, 168, 131),
+        Color3.fromRGB(50, 168, 131)
+    )
+}
+})
+
+--==================================================
+-- 📂 TABS
+--==================================================
+local Tabs = {
+Main     = Window:Tab({Title = "Auto Farm", Icon = "library"}),
+Combat   = Window:Tab({Title = "Combat", Icon = "swords"}),
+Stats    = Window:Tab({Title = "Stats", Icon = "trending-up"}),
+Storage  = Window:Tab({Title = "Storage", Icon = "package"}),
+Teleport = Window:Tab({Title = "Teleport", Icon = "map"}),
+Settings = Window:Tab({Title = "Settings", Icon = "settings"}),
+}
+
+Tabs.Main:Select()
+
+--==================================================
+-- 🧩 UI HELPER FUNCTIONS
+--==================================================
+
+--- สร้าง Section ใน Tab
+local function Section(Tab, Title)
+return Tab:Section({
+    Title = Title,
+    Box = false,
+    TextSize = 17,
+    Opened = true
+})
+end
+
+--- สร้าง Toggle พร้อมระบบ Threading
+local function Toggle(def, Tab, Desc, Title, Key)
+local thread
+local t = Tab:Toggle({
+    Title = Title,
+    Desc = Desc,
+    Value = c()[Key] or def,
+    Callback = function(state)
+        Config_Manager.S()[Key] = state
+        c()[Key] = state
+
+        if not state and thread then
+            task.cancel(thread)
+            thread = nil
+        end
+
+        if state and func[Key] then
+            thread = task.spawn(func[Key])
+        end
+
+        Config_Manager.SG()
+    end
+})
+
+if t then t.Callback(c()[Key] or def) end
+return t
+end
+
+--- สร้าง Slider
+local function Slider(Tab, Title, Step, Min, Max, Def, Key)
+local s = Tab:Slider({
+    Title = Title,
+    Step = Step,
+    Value = {Min = Min, Max = Max, Default = c()[Key] or Def},
+    Callback = function(val)
+        Config_Manager.S()[Key] = val
+        c()[Key] = val
+        Config_Manager.SG()
+    end
+})
+
+if s then s.Callback(c()[Key] or Def) end
+return s
+end
+
+--- สร้าง Dropdown
+local function Dropdown(Tab, Title, Key, Values, Multi)
+local d = Tab:Dropdown({
+    Title = Title,
+    Values = Values,
+    Multi = Multi or false,
+    AllowNone = false,
+    Value = c()[Key] or (Multi and {} or Values[1]),
+    Callback = function(v)
+        Config_Manager.S()[Key] = v
+        c()[Key] = v
+        Config_Manager.SG()
+    end
+})
+
+if d then d.Callback(c()[Key]) end
+return d
+end
+
+--- สร้าง Button
+local function Button(Tab, Title, Desc, Callback)
+return Tab:Button({
+    Title = Title,
+    Desc = Desc,
+    Callback = Callback
+})
+end
+
+--==================================================
+-- 📑 TAB: AUTO FARM
+--==================================================
+do
+local Farm = Section(Tabs.Main, "Auto Farm")
+
+local islands = {"All Islands"}
+for i in pairs(IslandData) do table.insert(islands, i) end
+table.sort(islands)
+
+Dropdown(Farm, "Select Island", "SelectedIsland", islands)
+Dropdown(Farm, "Select Mob", "SelectedMob", GetAllMobs())
+
+Toggle(false, Farm, "Auto farm selected mobs", "Enable Auto Farm", "AutoFarm")
+
+Button(Farm, "Refresh Mob List", "Reload mobs", function()
+    Dropdown(Farm, "Select Mob", "SelectedMob", GetAllMobs())
+end)
+
+local Boss = Section(Tabs.Main, "Boss / Beast")
+Toggle(false, Boss, "Farm Beast Orb", "Beast Orb Farm", "FarmBeastOrb")
+Toggle(false, Boss, "Auto spawn DIO", "Auto Spawn DIO", "AutoSpawnDio")
+Toggle(false, Boss, "Auto spawn Beast", "Auto Spawn Beast", "AutoSpawnBeast")
+end
+
+--==================================================
+-- ⚔️ TAB: COMBAT
+--==================================================
+do
+local Skills = Section(Tabs.Combat, "Auto Skills")
+Toggle(false, Skills, "Use skill Z", "Auto Skill Z", "UseSkillZ")
+Toggle(false, Skills, "Use skill X", "Auto Skill X", "UseSkillX")
+Toggle(false, Skills, "Use skill C", "Auto Skill C", "UseSkillC")
+Toggle(false, Skills, "Use skill V", "Auto Skill V", "UseSkillV")
+Toggle(false, Skills, "Use skill F", "Auto Skill F", "UseSkillF")
+Slider(Skills, "Skill Delay", 0.5, 0.5, 5, 1, "SkillDelay")
+Toggle(false, Skills, "Enable auto skills", "Enable Auto Skills", "AutoSkills")
+
+local Equip = Section(Tabs.Combat, "Auto Equip")
+local weapons = {
+    "Cid Kagenou", "Light", "M ALLNEW", 
+    "Shadow Cloak", "TWOH"
+}
+Dropdown(Equip, "Select Weapons", "SelectedWeapons", weapons, true)
+Slider(Equip, "Weapon Swap Delay", 1, 1, 10, 5, "WeaponSwapDelay")
+Toggle(false, Equip, "Auto equip selected weapons", "Auto Equip Weapons", "AutoEquipWeapon")
+Toggle(false, Equip, "Auto equip Shadow Cloak", "Auto Equip Shadow Cloak", "AutoEquipShadowCloak")
+
+local ESP = Section(Tabs.Combat, "ESP")
+Toggle(false, ESP, "Highlight mobs", "Mob ESP", "HighlightMob")
+
+local Allies = Section(Tabs.Combat, "Auto Allies")
+Toggle(false, Allies, "Auto ally all players", "Enable Auto Allies", "AutoAllies")
+end
+
+--==================================================
+-- 📊 TAB: STATS
+--==================================================
+do
+local S = Section(Tabs.Stats, "Auto Stats")
+Toggle(false, S, "Upgrade Strength", "Strength", "UpgradeStrength")
+Toggle(false, S, "Upgrade Defense", "Defense", "UpgradeDefense")
+Toggle(false, S, "Upgrade Sword", "Sword", "UpgradeSword")
+Toggle(false, S, "Upgrade Devil Fruit", "Devil Fruit", "UpgradeDF")
+Toggle(false, S, "Enable Auto Stats", "Auto Stats", "AutoStats")
+end
+
+--==================================================
+-- 📦 TAB: STORAGE
+--==================================================
+do
+local Spin = Section(Tabs.Storage, "Auto Spin")
+Toggle(false, Spin, "Auto spin for items", "Auto Random Item", "AutoRandomItem")
+
+local Store = Section(Tabs.Storage, "Auto Store")
+Toggle(false, Store, "Auto store Beast Orbs", "Auto Store Beast Orb", "AutoStoreOrb")
+Toggle(false, Store, "Auto store Stand Arrows", "Auto Store Stand Arrow", "AutoStoreArrow")
+Toggle(false, Store, "Auto store Heavenly Arrows", "Auto Store Heavenly Arrow", "AutoStoreHeavenly")
+Toggle(false, Store, "Auto store Backpack items", "Auto Store Backpack", "AutoStoreBackpack")
+
+local Craft = Section(Tabs.Storage, "Auto Craft")
+Toggle(false, Craft, "Auto craft & store Heavenly", "Auto Craft Heavenly Arrow", "AutoCraftHeavenly")
+Toggle(false, Craft, "Auto craft & store Cid Cloak", "Auto Craft Cid Cloak", "AutoCraftCidCloak")
+Toggle(false, Craft, "Auto craft Six Seven", "Auto Craft Six Seven", "AutoCraftSixSeven")
+Toggle(false, Craft, "Auto craft Diamond Sword", "Auto Craft Diamond Sword", "AutoCraftDiamond")
+end
+
+--==================================================
+-- 🗺️ TAB: TELEPORT
+--==================================================
+do
+local TP = Section(Tabs.Teleport, "Teleport Islands")
+Dropdown(TP, "Select Island", "TeleportIsland", AllIslands, false)
+Button(TP, "Teleport to Island", "Warp to selected island", function()
+    if c().TeleportIsland and IslandData[c().TeleportIsland] then
+        Teleport(CFrame.new(IslandData[c().TeleportIsland]))
+    end
+end)
+
+local NPC = Section(Tabs.Teleport, "Teleport NPCs")
+Dropdown(NPC, "Select NPC", "TeleportNPC", AllNPCs, false)
+Button(NPC, "Teleport to NPC", "Warp to selected NPC", function()
+    if c().TeleportNPC and NPCData[c().TeleportNPC] then
+        Teleport(CFrame.new(NPCData[c().TeleportNPC] + Vector3.new(0, 3, 0)))
+    end
+end)
+end
+
+--==================================================
+-- ⚙️ TAB: SETTINGS & WEBHOOK
+--==================================================
+do
+local Perf = Section(Tabs.Settings, "Performance")
+Toggle(false, Perf, "Reduce effects", "Reduce CPU", "ReduceCPU")
+Toggle(false, Perf, "Disable camera shake", "Disable Cam Shake", "DisableCamShake")
+
+-- ================================
+-- 🔔 WEBHOOK SECTION
+-- ================================
+local Webhook = Section(Tabs.Settings, "Discord Webhook")
+
+Tabs.Settings:Input({
+    Title = "Webhook URL",
+    Value = c().WebhookURL or "",
+    Placeholder = "https://discord.com/api/webhooks/...",
+    Callback = function(v)
+        c().WebhookURL = v
+        Config_Manager.S().WebhookURL = v
+        Config_Manager.SG()
+    end
+})
+
+Button(Webhook, "Test Webhook", "Send test message", function()
+    local success, result = SendTestWebhook()
+    if success then
+        print("✅ Test webhook sent successfully!")
+    else
+        warn("❌ Test webhook failed: " .. tostring(result))
+    end
+end)
+
+Slider(Webhook, "Status Interval (Minutes)", 1, 1, 60, 5, "WebhookInterval")
+Toggle(false, Webhook, "Auto send status", "Enable Auto Webhook", "AutoWebhook")
+
+-- ================================
+-- 🎁 FOUND ITEM SETTINGS
+-- ================================
+local Found = Section(Tabs.Settings, "Found Item Settings")
+
+Dropdown(
+    Found, "Watch Rarity", "WebhookWatchRarity",
+    {"Mythic", "Special", "Legendary", "Rare"}, true
+)
+
+Dropdown(
+    Found, "Mythic Items Filter", "WebhookMythicItems",
+    RarityItems.Mythic, true
+)
+
+Toggle(
+    true, Found,
+    "Ping @everyone when found Mythic",
+    "Ping @everyone",
+    "WebhookPingEveryone"
+)
+end
+
+--==================================================
+-- 🎉 SCRIPT LOADED
+--==================================================
+print("========================================")
+print(" Jxckyz Hub - Jood Piece Loaded!")
+print(" Version: 2.0 (Webhook Enhanced)")
+print(" Player: " .. Client.Name)
+print(" UserID: " .. Client.UserId)
+print("========================================")
